@@ -5,20 +5,19 @@ const https = require('https');
 const PORT = process.env.PORT || 3000;
 const server = http.createServer((req, res) => {
     res.writeHead(200);
-    res.end('Minecraft Server is Running!');
+    res.end('Minecraft Server Running!');
 });
 
 const wss = new WebSocket.Server({ server });
 
-// GAME STATE
 let players = {};
-let blocks = {}; // Stores changes: "x,y,z": type
+let blocks = {}; 
 
 wss.on('connection', (ws) => {
     const id = Math.random().toString(36).substring(7);
     console.log(`Player ${id} joined`);
 
-    // 1. Send Initial State (Your ID, World Blocks, Other Players)
+    // Send Init Packet
     ws.send(JSON.stringify({
         t: 'init', 
         id: id,
@@ -26,18 +25,17 @@ wss.on('connection', (ws) => {
         players: players
     }));
 
-    // 2. Add new player to list
-    players[id] = { x: 0, y: 5, z: 0, yaw: 0, pitch: 0, anim: 0 };
+    // Default state
+    players[id] = { x: 0, y: 10, z: 0, yaw: 0, pitch: 0, anim: 0, name: "Player" + id };
     
-    // 3. Tell everyone else a new player joined
-    broadcast({ t: 'spawn', id: id, x: 0, y: 5, z: 0 });
+    // Notify others
+    broadcast({ t: 'spawn', id: id, x: 0, y: 10, z: 0, name: players[id].name });
 
     ws.on('message', (message) => {
         try {
             const data = JSON.parse(message);
             
             if (data.t === 'move') {
-                // Update player state
                 if (players[id]) {
                     players[id].x = data.x;
                     players[id].y = data.y;
@@ -45,24 +43,22 @@ wss.on('connection', (ws) => {
                     players[id].yaw = data.yaw;
                     players[id].pitch = data.pitch;
                     players[id].anim = data.anim;
-                    
-                    // Broadcast movement to others (exclude self)
+                    // If client sends a name update, save it
+                    if (data.name) players[id].name = data.name;
+
                     broadcast({ t: 'update', id: id, ...players[id] }, ws);
                 }
             }
             else if (data.t === 'block') {
                 const key = `${data.x},${data.y},${data.z}`;
-                if (data.type === 0) delete blocks[key]; // Air/Break
-                else blocks[key] = data.type; // Place
-                
-                // Tell everyone about the block change
-                broadcast(data); // Send to everyone including sender (to confirm)
+                if (data.type === 0) delete blocks[key]; 
+                else blocks[key] = data.type; 
+                broadcast(data); 
             }
         } catch (e) { console.error(e); }
     });
 
     ws.on('close', () => {
-        console.log(`Player ${id} left`);
         delete players[id];
         broadcast({ t: 'leave', id: id });
     });
@@ -77,15 +73,10 @@ function broadcast(msg, excludeWs) {
     });
 }
 
-server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+server.listen(PORT, () => console.log(`Server on port ${PORT}`));
 
-// --- ANTI-SLEEP MECHANISM ---
-// Pings itself every 10 minutes to stop Render from sleeping
-const APP_URL = "https://YOUR-APP-NAME.onrender.com"; // CHANGE THIS AFTER DEPLOYING
+// Keep-Alive Ping
+const APP_URL = "https://threedmonogameserver.onrender.com"; 
 setInterval(() => {
-    https.get(APP_URL, (res) => {
-        console.log(`Ping sent to ${APP_URL}. Status: ${res.statusCode}`);
-    }).on('error', (e) => {
-        console.error(`Ping failed: ${e.message}`);
-    });
-}, 600000); // 10 minutes
+    https.get(APP_URL, (res) => {}).on('error', (e) => {});
+}, 600000);
