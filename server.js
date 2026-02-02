@@ -45,6 +45,8 @@ wss.on('connection', (ws) => {
                     players[id].anim = data.anim;
                     // If client sends a name update, save it
                     if (data.name) players[id].name = data.name;
+                    // If client sends held block, save it
+                    if (data.held !== undefined) players[id].held = data.held;
 
                     broadcast({ t: 'update', id: id, ...players[id] }, ws);
                 }
@@ -54,6 +56,10 @@ wss.on('connection', (ws) => {
                 if (data.type === 0) delete blocks[key]; 
                 else blocks[key] = data.type; 
                 broadcast(data); 
+            }
+            else if (data.t === 'swing') {
+                // Relay the swing event to all other players (exclude sender)
+                broadcast({ t: 'swing', id: id }, ws);
             }
         } catch (e) { console.error(e); }
     });
