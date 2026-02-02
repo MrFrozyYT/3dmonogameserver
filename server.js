@@ -43,9 +43,7 @@ wss.on('connection', (ws) => {
                     players[id].yaw = data.yaw;
                     players[id].pitch = data.pitch;
                     players[id].anim = data.anim;
-                    // If client sends a name update, save it
                     if (data.name) players[id].name = data.name;
-                    // If client sends held block, save it
                     if (data.held !== undefined) players[id].held = data.held;
 
                     broadcast({ t: 'update', id: id, ...players[id] }, ws);
@@ -58,8 +56,12 @@ wss.on('connection', (ws) => {
                 broadcast(data); 
             }
             else if (data.t === 'swing') {
-                // Relay the swing event to all other players (exclude sender)
                 broadcast({ t: 'swing', id: id }, ws);
+            }
+            // --- NEW CHAT HANDLER ---
+            else if (data.t === 'chat') {
+                console.log(`Chat: ${data.msg}`);
+                broadcast({ t: 'chat', id: id, name: players[id].name, msg: data.msg });
             }
         } catch (e) { console.error(e); }
     });
@@ -81,7 +83,6 @@ function broadcast(msg, excludeWs) {
 
 server.listen(PORT, () => console.log(`Server on port ${PORT}`));
 
-// Keep-Alive Ping
 const APP_URL = "https://threedmonogameserver.onrender.com"; 
 setInterval(() => {
     https.get(APP_URL, (res) => {}).on('error', (e) => {});
