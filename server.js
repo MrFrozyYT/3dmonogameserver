@@ -17,19 +17,19 @@ wss.on('connection', (ws) => {
     const id = Math.random().toString(36).substring(7);
     console.log(`Player ${id} joined`);
 
-    // Send Init Packet
+    // FIX 1: Send 'id' instead of 'init' to match C# client
     ws.send(JSON.stringify({
-        t: 'init', 
+        t: 'id', 
         id: id,
-        blocks: blocks,
+        blocks: blocks, // Send current world blocks to new player
         players: players
     }));
 
     // Default state
-    players[id] = { x: 0, y: 10, z: 0, yaw: 0, pitch: 0, anim: 0, name: "Player" + id };
+    players[id] = { x: 0, y: 10, z: 0, yaw: 0, pitch: 0, anim: 0, name: "Player" + id, crouching: false };
     
     // Notify others
-    broadcast({ t: 'spawn', id: id, x: 0, y: 10, z: 0, name: players[id].name });
+    broadcast({ t: 'move', id: id, x: 0, y: 10, z: 0, name: players[id].name });
 
     ws.on('message', (message) => {
         try {
@@ -43,10 +43,13 @@ wss.on('connection', (ws) => {
                     players[id].yaw = data.yaw;
                     players[id].pitch = data.pitch;
                     players[id].anim = data.anim;
+                    // FIX 2: Handle Crouching
+                    if (data.crouching !== undefined) players[id].crouching = data.crouching;
                     if (data.name) players[id].name = data.name;
                     if (data.held !== undefined) players[id].held = data.held;
 
-                    broadcast({ t: 'update', id: id, ...players[id] }, ws);
+                    // FIX 3: Broadcast 'move' instead of 'update' to match C# client
+                    broadcast({ t: 'move', id: id, ...players[id] }, ws);
                 }
             }
             else if (data.t === 'block') {
@@ -58,7 +61,6 @@ wss.on('connection', (ws) => {
             else if (data.t === 'swing') {
                 broadcast({ t: 'swing', id: id }, ws);
             }
-            // --- NEW CHAT HANDLER ---
             else if (data.t === 'chat') {
                 console.log(`Chat: ${data.msg}`);
                 broadcast({ t: 'chat', id: id, name: players[id].name, msg: data.msg });
@@ -68,7 +70,8 @@ wss.on('connection', (ws) => {
 
     ws.on('close', () => {
         delete players[id];
-        broadcast({ t: 'leave', id: id });
+        // FIX 4: Broadcast 'left' instead of 'leave'
+        broadcast({ t: 'left', id: id });
     });
 });
 
